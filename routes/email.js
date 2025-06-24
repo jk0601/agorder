@@ -99,6 +99,12 @@ router.post('/send', async (req, res) => {
     };
 
     // 이메일 설정이 없으면 시뮬레이션 모드
+    console.log('🔍 환경변수 체크:', {
+      EMAIL_USER: process.env.EMAIL_USER ? '설정됨' : '설정안됨',
+      EMAIL_PASS: process.env.EMAIL_PASS ? '설정됨' : '설정안됨',
+      NODE_ENV: process.env.NODE_ENV
+    });
+    
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.log('📧 [시뮬레이션 모드] 이메일 전송:', {
         to: to,

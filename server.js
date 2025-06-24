@@ -2,10 +2,21 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// uploads 폴더 확인 및 생성 (Render에서는 /tmp 사용)
+const uploadsDir = process.env.NODE_ENV === 'production' 
+  ? path.join('/tmp', 'uploads')  // Render에서는 /tmp 사용
+  : path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('📁 uploads 폴더가 생성되었습니다:', uploadsDir);
+}
 
 // 미들웨어 설정
 app.use(cors());
@@ -15,7 +26,7 @@ app.use(express.static('public'));
 // 파일 업로드 설정
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/');
+    cb(null, uploadsDir);  // 동적 경로 사용
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -67,4 +78,5 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`📁 파일 업로드: http://localhost:${PORT}`);
+  console.log(`📂 업로드 디렉토리: ${uploadsDir}`);
 }); 

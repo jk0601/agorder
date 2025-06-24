@@ -2,9 +2,28 @@ const ExcelJS = require('exceljs');
 const path = require('path');
 const fs = require('fs');
 
+// 생성된 파일 저장 디렉토리 설정
+const getOutputDir = () => {
+  return process.env.NODE_ENV === 'production' 
+    ? path.join('/tmp', 'uploads')  // Render에서는 /tmp 사용
+    : path.join(__dirname, '../uploads');
+};
+
 // 🔄 주문서를 표준 발주서로 변환
 async function convertToStandardFormat(sourceFilePath, templateFilePath, mappingRules) {
   try {
+    console.log('🔄 데이터 변환 시작');
+    console.log('📂 입력 파일:', sourceFilePath);
+    console.log('📂 템플릿 파일:', templateFilePath);
+    
+    const outputDir = getOutputDir();
+    
+    // 출력 디렉토리 확인 및 생성
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+      console.log('📁 출력 디렉토리 생성됨:', outputDir);
+    }
+    
     // 1. 원본 주문서 데이터 읽기
     const sourceData = await readSourceFile(sourceFilePath);
     
@@ -165,6 +184,7 @@ function applyDefaultMapping(data) {
 
 // 📋 발주서 생성
 async function generatePurchaseOrder(templateFilePath, transformedData) {
+  const outputDir = getOutputDir();
   const workbook = new ExcelJS.Workbook();
   let useTemplate = false;
   
@@ -252,7 +272,7 @@ async function generatePurchaseOrder(templateFilePath, transformedData) {
   // 파일 저장 - 공유 수식 오류 방지
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const fileName = `발주서_${timestamp}.xlsx`;
-  const outputPath = path.join(__dirname, '../uploads', fileName);
+  const outputPath = path.join(outputDir, fileName);
   
   // 안전한 파일 저장
   try {
