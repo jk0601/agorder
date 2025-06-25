@@ -3,17 +3,22 @@ const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// uploads 폴더 확인 및 생성 (Render에서는 /tmp 사용)
-const uploadsDir = process.env.NODE_ENV === 'production' 
-  ? path.join('/tmp', 'uploads')  // Render에서는 /tmp 사용
-  : path.join(__dirname, 'uploads');
+// Supabase 클라이언트 초기화
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
-if (!fs.existsSync(uploadsDir)) {
+// uploads 폴더 확인 및 생성 (개발환경용 - 프로덕션에서는 Supabase Storage 사용)
+const uploadsDir = path.join(__dirname, 'uploads');
+
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   console.log('📁 uploads 폴더가 생성되었습니다:', uploadsDir);
 }
@@ -23,16 +28,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// 파일 업로드 설정
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);  // 동적 경로 사용
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// 파일 업로드 설정 - 메모리 스토리지 사용 (Supabase로 직접 업로드)
+const storage = process.env.NODE_ENV === 'production' 
+  ? multer.memoryStorage()  // 프로덕션: 메모리에 임시 저장 후 Supabase로 업로드
+  : multer.diskStorage({    // 개발환경: 디스크 저장
+      destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+      },
+      filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+      }
+    });
 
 const upload = multer({ 
   storage: storage,
