@@ -2,6 +2,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
+const { downloadFile } = require('../utils/supabase');
 
 const router = express.Router();
 
@@ -48,11 +49,23 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    // 첨부파일 존재 확인
-    const fullAttachmentPath = path.join(__dirname, '../uploads', attachmentPath);
-    if (!fs.existsSync(fullAttachmentPath)) {
+    // Supabase Storage에서 첨부파일 다운로드
+    console.log('📥 이메일 첨부파일 다운로드 중:', attachmentPath);
+    const downloadResult = await downloadFile(attachmentPath, 'generated');
+    
+    if (!downloadResult.success) {
+      console.log('❌ 첨부파일 다운로드 실패:', downloadResult.error);
       return res.status(404).json({ error: '첨부파일을 찾을 수 없습니다.' });
     }
+    
+    // 임시 파일로 저장 (이메일 첨부용)
+    const tempAttachmentPath = path.join(__dirname, '../uploads', attachmentPath);
+    // uploads 폴더가 없으면 생성
+    if (!fs.existsSync(path.join(__dirname, '../uploads'))) {
+      fs.mkdirSync(path.join(__dirname, '../uploads'), { recursive: true });
+    }
+    fs.writeFileSync(tempAttachmentPath, downloadResult.data);
+    console.log('✅ 첨부파일 임시 저장 완료');
 
     // 이메일 템플릿 적용 (템플릿이 있는 경우)
     let emailBody = body || '안녕하세요.\n\n발주서를 첨부파일로 보내드립니다.\n\n확인 후 회신 부탁드립니다.\n\n감사합니다.';
@@ -93,7 +106,7 @@ router.post('/send', async (req, res) => {
       attachments: [
         {
           filename: path.basename(attachmentPath),
-          path: fullAttachmentPath
+          path: tempAttachmentPath
         }
       ]
     };
@@ -140,6 +153,12 @@ router.post('/send', async (req, res) => {
     }
 
     const info = await transporter.sendMail(mailOptions);
+    
+    // 임시 파일 정리
+    if (fs.existsSync(tempAttachmentPath)) {
+      fs.unlinkSync(tempAttachmentPath);
+      console.log('✅ 임시 첨부파일 정리 완료');
+    }
     
     // 전송 이력 저장
     saveEmailHistory({

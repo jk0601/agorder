@@ -18,7 +18,11 @@ if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadsDir)) {
   console.log('📁 업로드 폴더 생성됨:', uploadsDir);
 }
 
-// 파일 업로드 설정 - 환경에 따라 스토리지 방식 변경
+// 파일 업로드 설정 - Supabase Storage 사용 (모든 환경)
+const storage = multer.memoryStorage(); // 모든 환경에서 Supabase 사용
+
+// 기존 환경별 스토리지 설정 (주석 처리)
+/*
 const storage = process.env.NODE_ENV === 'production' 
   ? multer.memoryStorage()  // 프로덕션: 메모리 스토리지 (Supabase로 업로드)
   : multer.diskStorage({    // 개발환경: 디스크 스토리지
@@ -30,6 +34,7 @@ const storage = process.env.NODE_ENV === 'production'
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
       }
     });
+*/
 
 const upload = multer({ storage: storage });
 
@@ -48,6 +53,24 @@ router.post('/upload', upload.single('orderFile'), async (req, res) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const fileName = 'orderFile-' + uniqueSuffix + path.extname(req.file.originalname);
     
+    // Supabase Storage에 업로드 (모든 환경)
+    console.log('📤 Supabase Storage 업로드 중...');
+    
+    const uploadResult = await uploadFile(req.file.buffer, fileName);
+    if (!uploadResult.success) {
+      return res.status(500).json({ 
+        error: 'Supabase Storage 업로드 실패', 
+        details: uploadResult.error 
+      });
+    }
+    
+    const filePath = fileName; // Supabase에서는 파일명만 저장
+    const fileBuffer = req.file.buffer;
+    
+    console.log('✅ Supabase 업로드 성공:', fileName);
+
+    // 기존 환경별 파일 처리 (주석 처리)
+    /*
     let filePath;
     let fileBuffer;
 
@@ -79,6 +102,7 @@ router.post('/upload', upload.single('orderFile'), async (req, res) => {
         path: filePath
       });
     }
+    */
 
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
     
@@ -141,13 +165,16 @@ router.post('/upload', upload.single('orderFile'), async (req, res) => {
     res.json({
       success: true,
       fileName: req.file.originalname,
-      fileId: process.env.NODE_ENV === 'production' ? fileName : req.file.filename,
+      fileId: fileName, // 모든 환경에서 Supabase 파일명 사용
       headers: headers,
       previewData: previewData,
       totalRows: previewData.length,
       validation: validation,
       message: `파일이 성공적으로 업로드되었습니다. ${previewData.length}행의 데이터를 확인했습니다.`
     });
+
+    // 기존 환경별 fileId 설정 (주석 처리)
+    // fileId: process.env.NODE_ENV === 'production' ? fileName : req.file.filename,
 
   } catch (error) {
     console.error('❌ 파일 업로드 오류:', error);
@@ -172,6 +199,18 @@ router.post('/mapping', async (req, res) => {
       rules: mappingRules
     };
 
+    // Supabase Storage에 저장 (모든 환경)
+    const saveResult = await saveMappingData(mappingName, mappingData);
+    if (!saveResult.success) {
+      return res.status(500).json({ 
+        error: 'Supabase Storage 매핑 저장 실패', 
+        details: saveResult.error 
+      });
+    }
+    console.log('✅ Supabase 매핑 저장 성공:', mappingName);
+
+    // 기존 환경별 매핑 저장 (주석 처리)
+    /*
     if (process.env.NODE_ENV === 'production') {
       // 프로덕션: Supabase Storage에 저장
       const saveResult = await saveMappingData(mappingName, mappingData);
@@ -196,6 +235,7 @@ router.post('/mapping', async (req, res) => {
       );
       console.log('✅ 로컬 매핑 저장 성공:', path.join(mappingPath, `${mappingName}.json`));
     }
+    */
 
     res.json({
       success: true,
@@ -219,6 +259,34 @@ router.post('/generate', async (req, res) => {
     
     console.log('📋 발주서 생성 요청:', { fileId, mappingId, templateType });
     
+    // Supabase Storage에서 파일 다운로드 (모든 환경)
+    console.log('📥 Supabase에서 파일 다운로드 중:', fileId);
+    
+    const downloadResult = await downloadFile(fileId);
+    if (!downloadResult.success) {
+      console.log('❌ Supabase 파일 다운로드 실패:', downloadResult.error);
+      return res.status(404).json({ error: '업로드된 파일을 찾을 수 없습니다.' });
+    }
+    
+    // 임시 파일로 저장 (변환 처리용)
+    const uploadedFilePath = path.join(__dirname, '../uploads', fileId);
+    // uploads 폴더가 없으면 생성
+    if (!fs.existsSync(path.join(__dirname, '../uploads'))) {
+      fs.mkdirSync(path.join(__dirname, '../uploads'), { recursive: true });
+    }
+    fs.writeFileSync(uploadedFilePath, downloadResult.data);
+    console.log('✅ Supabase 파일 다운로드 완료');
+
+    // 매핑 규칙 로드
+    let mappingRules = {};
+    const mappingResult = await loadMappingData(mappingId);
+    if (mappingResult.success) {
+      mappingRules = mappingResult.data;
+      console.log('✅ Supabase 매핑 로드 완료');
+    }
+
+    // 기존 환경별 파일 처리 (주석 처리)
+    /*
     let uploadedFilePath;
     let mappingRules = {};
 
@@ -257,6 +325,7 @@ router.post('/generate', async (req, res) => {
         mappingRules = JSON.parse(fs.readFileSync(mappingPath, 'utf8'));
       }
     }
+    */
 
     // 템플릿 파일 로드
     const templatePath = path.join(__dirname, '../file/porder_template.xlsx');
@@ -266,6 +335,23 @@ router.post('/generate', async (req, res) => {
     
     console.log('✅ 발주서 생성 완료:', result.fileName);
 
+    // 생성된 발주서를 Supabase Storage에 업로드 (모든 환경)
+    const generatedFileBuffer = fs.readFileSync(result.filePath);
+    const uploadResult = await uploadFile(generatedFileBuffer, result.fileName, 'generated');
+    
+    if (uploadResult.success) {
+      console.log('✅ 생성된 발주서 Supabase 업로드 완료');
+      // 임시 파일들 정리
+      if (fs.existsSync(uploadedFilePath)) fs.unlinkSync(uploadedFilePath);
+      if (fs.existsSync(result.filePath)) fs.unlinkSync(result.filePath);
+    } else {
+      console.error('❌ 생성된 발주서 Supabase 업로드 실패:', uploadResult.error);
+    }
+
+    const downloadUrl = `/api/orders/download/${result.fileName}`;
+
+    // 기존 환경별 업로드 처리 (주석 처리)
+    /*
     let downloadUrl = `/api/orders/download/${result.fileName}`;
     
     if (process.env.NODE_ENV === 'production') {
@@ -282,6 +368,7 @@ router.post('/generate', async (req, res) => {
         console.error('❌ 생성된 발주서 Supabase 업로드 실패:', uploadResult.error);
       }
     }
+    */
     
     res.json({
       success: true,
@@ -308,6 +395,23 @@ router.get('/download/:fileName', async (req, res) => {
     
     console.log('📥 다운로드 요청:', fileName);
     
+    // Supabase Storage에서 다운로드 (모든 환경)
+    const downloadResult = await downloadFile(fileName, 'generated');
+    
+    if (!downloadResult.success) {
+      console.log('❌ Supabase 파일 다운로드 실패:', downloadResult.error);
+      return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    }
+
+    // 파일 헤더 설정 및 전송
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(downloadResult.data);
+    
+    console.log('✅ Supabase 파일 다운로드 완료:', fileName);
+
+    // 기존 환경별 다운로드 처리 (주석 처리)
+    /*
     if (process.env.NODE_ENV === 'production') {
       // 프로덕션: Supabase Storage에서 다운로드
       const downloadResult = await downloadFile(fileName, 'generated');
@@ -341,6 +445,7 @@ router.get('/download/:fileName', async (req, res) => {
         }
       });
     }
+    */
 
   } catch (error) {
     console.error('❌ 다운로드 오류:', error);

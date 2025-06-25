@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "to": "jkj0601test@gmail.com",
+    "subject": "[발주서] 주문 발주서 전송54321",
+    "attachmentName": "purchase_order_2025-06-25T06-17-53.xlsx",
+    "sentAt": "2025-06-25T06:18:54.836Z",
+    "messageId": "<2ab96727-b601-0bf4-efa9-012fb1e0fd4e@gmail.com>",
+    "status": "success"
+  }
+]

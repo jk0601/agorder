@@ -17,11 +17,29 @@ async function uploadFile(fileBuffer, fileName, bucket = 'uploads') {
   try {
     console.log('📤 Supabase Storage 업로드 시작:', fileName);
     
+    // 파일 확장자에 따른 MIME 타입 설정
+    const getContentType = (fileName) => {
+      const ext = fileName.toLowerCase().split('.').pop();
+      switch (ext) {
+        case 'xlsx':
+          return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        case 'xls':
+          return 'application/vnd.ms-excel';
+        case 'csv':
+          return 'text/csv';
+        case 'json':
+          return 'application/json';
+        default:
+          return 'application/octet-stream';
+      }
+    };
+    
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(`files/${fileName}`, fileBuffer, {
         cacheControl: '3600',
-        upsert: false
+        upsert: false,
+        contentType: getContentType(fileName)
       });
 
     if (error) {

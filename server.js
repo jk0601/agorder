@@ -15,20 +15,27 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// uploads 폴더 확인 및 생성 (개발환경용 - 프로덕션에서는 Supabase Storage 사용)
+// uploads 폴더는 임시 파일 처리용으로만 사용 (Supabase Storage가 메인)
 const uploadsDir = path.join(__dirname, 'uploads');
 
+// 기존 자동 폴더 생성 코드 (주석 처리 - 필요시에만 생성)
+/*
 if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   console.log('📁 uploads 폴더가 생성되었습니다:', uploadsDir);
 }
+*/
 
 // 미들웨어 설정
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// 파일 업로드 설정 - 메모리 스토리지 사용 (Supabase로 직접 업로드)
+// 파일 업로드 설정 - Supabase Storage 사용 (로컬에서도 테스트)
+const storage = multer.memoryStorage(); // 모든 환경에서 Supabase 사용
+
+// 기존 로컬 파일 시스템 설정 (주석 처리)
+/*
 const storage = process.env.NODE_ENV === 'production' 
   ? multer.memoryStorage()  // 프로덕션: 메모리에 임시 저장 후 Supabase로 업로드
   : multer.diskStorage({    // 개발환경: 디스크 저장
@@ -40,6 +47,7 @@ const storage = process.env.NODE_ENV === 'production'
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
       }
     });
+*/
 
 const upload = multer({ 
   storage: storage,
@@ -85,5 +93,6 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 서버가 포트 ${PORT}에서 실행 중입니다.`);
   console.log(`📁 파일 업로드: http://localhost:${PORT}`);
-  console.log(`📂 업로드 디렉토리: ${uploadsDir}`);
+  console.log(`☁️ 스토리지: Supabase Storage (모든 환경)`);
+  console.log(`🔗 Supabase URL: ${process.env.SUPABASE_URL ? '✅ 연결됨' : '❌ 설정안됨'}`);
 }); 

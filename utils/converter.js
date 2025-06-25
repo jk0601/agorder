@@ -271,7 +271,7 @@ async function generatePurchaseOrder(templateFilePath, transformedData) {
   
   // 파일 저장 - 공유 수식 오류 방지
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const fileName = `발주서_${timestamp}.xlsx`;
+      const fileName = `purchase_order_${timestamp}.xlsx`;
   const outputPath = path.join(outputDir, fileName);
   
   // 안전한 파일 저장
